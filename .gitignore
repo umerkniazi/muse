@@ -1,0 +1,8 @@
+dist/
+build/
+*.spec
+*.pyc
+__pycache__/
+*.tar.gz
+*.zip
+MuseSetup*.exe

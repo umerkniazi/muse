@@ -1,0 +1,3 @@
+mutagen
+pygame
+windows-curses; platform_system == "Windows"

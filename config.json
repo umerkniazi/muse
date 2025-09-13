@@ -1,0 +1,40 @@
+{
+  "keybindings": {
+    "quit": [
+      ":q"
+    ],
+    "search": [
+      "/"
+    ],
+    "next": [
+      "n"
+    ],
+    "prev": [
+      "p"
+    ],
+    "play_pause": [
+      " "
+    ],
+    "down": [
+      "KEY_DOWN"
+    ],
+    "up": [
+      "KEY_UP"
+    ],
+    "enter": [
+      "KEY_ENTER",
+      10,
+      13
+    ],
+    "add_folder": [
+      ":a"
+    ],
+    "shuffle": [
+      "s"
+    ],
+    "repeat": [
+      "r"
+    ]
+  },
+  "music_folder": "D:\\Music"
+}
