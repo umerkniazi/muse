@@ -34,7 +34,37 @@
     ],
     "repeat": [
       "r"
+    ],
+    "volume_up": [
+      "+",
+      "="
+    ],
+    "volume_down": [
+      "-"
+    ],
+    "fadeout": [
+      "f"
+    ],
+    "queue": [
+      "e"
+    ],
+    "seek_forward": [
+      "KEY_RIGHT"
+    ],
+    "seek_backward": [
+      "KEY_LEFT"
+    ],
+    "clear_queue": [
+      ":clear"
+    ],
+    "remove_queue": [
+      ":remove"
     ]
   },
-  "music_folder": "D:\\Music"
+  "music_folder": "D:\\Music",
+  "seek_seconds": 5,
+  "shuffle": false,
+  "repeat": false,
+  "volume": 1.0,
+  "default_view": 1
 }

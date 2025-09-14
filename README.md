@@ -4,26 +4,28 @@ Muse is a terminal-based music player for Windows and Linux, inspired by [cmus](
 
 ## Features
 
-- Play MP3 files from your music folder
-- Keyboard controls for navigation and playback
-- Search and fuzzy match for songs
+- Tracks, Albums, and Queue views
+- Add/remove songs to/from the queue
+- Play/pause, skip forward/back, and volume control
+- Fuzzy search for songs
 - Shuffle and repeat modes
 - Configurable keybindings
 - Persistent music folder setting
+- Supports almost all audio formats
 
 ## Installation
 
 ### Windows
 
-1. Download and run `MuseSetup-v1.0.0.exe`.
+1. Download and run `MuseSetup-v1.1.0.exe`.
 2. The installer adds Muse to your PATH.
 3. Launch Muse from any terminal by typing `muse`.
 
 ### Linux
 
-1. Download and extract `muse-v1.0.0-linux.tar.gz`:
+1. Download and extract `muse-v1.1.0-linux.tar.gz`:
    ```
-   tar -xzvf muse-v1.0.0-linux.tar.gz
+   tar -xzvf muse-v1.1.0-linux.tar.gz
    ```
 2. Run the player:
    ```
@@ -37,6 +39,10 @@ Muse is a terminal-based music player for Windows and Linux, inspired by [cmus](
 - Press `n`/`p` for next/previous.
 - Press `/` to search.
 - Press `:q` to quit.
+- Press `1`, `2`, or `3` to switch between Tracks, Queue, and Albums views.
+- Use `+`/`-` to adjust volume.
+- Use left/right arrows for forward/back playback.
+- Use `:help` for a full list of commands.
 
 ## Configuration
 
