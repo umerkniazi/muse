@@ -1,7 +1,15 @@
 import os
 import sys
+import json
+import glob
+import time
+import random
+import difflib
+import hashlib
+from music_player import MusicPlayer
+from mutagen import File
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 if len(sys.argv) > 1 and sys.argv[1] in ("-v", "--version"):
     print(APP_VERSION)
@@ -12,7 +20,6 @@ if sys.platform == "win32":
 else:
     print(f"\33]0;Muse {APP_VERSION}\a", end="", flush=True)
 
-import json
 try:
     import curses
 except ImportError:
@@ -21,13 +28,6 @@ except ImportError:
         sys.exit(1)
     else:
         raise
-
-import glob
-import time
-import random
-import difflib
-from music_player import MusicPlayer
-from mutagen import File
 
 DEFAULT_CONFIG = {
   "keybindings": {
@@ -173,6 +173,7 @@ def help_text(keybindings):
     lines.append("")
     lines.append("Other commands:")
     lines.append(":a <folder> - Add/change music folder")
+    lines.append(":refresh - Rescan music folder and update library")
     lines.append(":clear - Clear queue")
     lines.append(":remove <n> - Remove nth song from queue")
     lines.append(":q - Quit Muse")
@@ -207,6 +208,9 @@ def search(query, names):
         fuzzy_matches = [i for i, name in zip(fuzzy_candidates, fuzzy_names) if name in fuzzy_matches_raw]
     all_matches = exact_matches + starts_with_matches + word_matches + substring_matches + fuzzy_matches
     return all_matches
+
+def get_folder_hash(path):
+    return hashlib.md5(path.encode("utf-8")).hexdigest()
 
 class CLI:
     def __init__(self, stdscr, config):
@@ -477,7 +481,18 @@ class CLI:
         self.stdscr.refresh()
 
     def load_playlist(self, path):
+        cache_file = f"playlist_cache_{get_folder_hash(path)}.json"
         try:
+            if os.path.exists(cache_file):
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cache = json.load(f)
+                self.playlist = cache.get("playlist", [])
+                self.display_names = cache.get("display_names", [])
+                self.durations = cache.get("durations", [])
+                self.albums = cache.get("albums", {})
+                self.album_names = cache.get("album_names", [])
+                self.error_message = ""
+                return
             extensions = [
                 '*.mp3', '*.wav', '*.flac', '*.ogg', '*.aac', '*.m4a', '*.wma',
                 '*.aiff', '*.ape', '*.opus', '*.mpc', '*.spx', '*.wv', '*.tta',
@@ -514,11 +529,28 @@ class CLI:
                     self.albums[album].append(song)
             self.album_names = sorted(list(self.albums.keys()))
             self.error_message = ""
+            cache = {
+                "playlist": self.playlist,
+                "display_names": self.display_names,
+                "durations": self.durations,
+                "albums": self.albums,
+                "album_names": self.album_names
+            }
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(cache, f)
         except Exception as e:
             self.display_names = ["[Error loading music folder]"]
             self.durations = [""]
             self.playlist = []
             self.error_message = str(e)
+
+    def refresh_playlist(self):
+        cache_file = f"playlist_cache_{get_folder_hash(self.music_folder)}.json"
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+        self.load_playlist(self.music_folder)
+        self.selected_index = 0
+        self.scroll_offset = 0
 
     def play_song(self, song_path):
         try:
@@ -625,6 +657,8 @@ class CLI:
                             self.durations = [""]
                             self.playlist = []
                             self.error_message = "Folder not found."
+                    elif command_buffer.strip() == ":refresh":
+                        self.refresh_playlist()
                     elif command_buffer.strip() == ":q":
                         self.config["volume"] = self.volume
                         self.config["shuffle"] = self.shuffle
