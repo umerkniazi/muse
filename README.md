@@ -29,7 +29,7 @@ Muse is a terminal-based music player for Windows and Linux, inspired by [cmus](
    ```
 2. Run the player:
    ```
-   ./muse
+   ./main
    ```
 
 ## Usage
