@@ -17,15 +17,15 @@ Muse is a terminal-based music player for Windows and Linux, inspired by [cmus](
 
 ### Windows
 
-1. Download and run `MuseSetup-v1.1.0.exe`.
+1. Download and run `MuseSetup-v1.1.2.exe`.
 2. The installer adds Muse to your PATH.
 3. Launch Muse from any terminal by typing `muse`.
 
 ### Linux
 
-1. Download and extract `muse-v1.1.0-linux.tar.gz`:
+1. Download and extract `muse-v1.1.2-linux.tar.gz`:
    ```
-   tar -xzvf muse-v1.1.0-linux.tar.gz
+   tar -xzvf muse-v1.1.2-linux.tar.gz
    ```
 2. Run the player:
    ```
