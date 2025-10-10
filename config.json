@@ -61,7 +61,7 @@
       ":remove"
     ]
   },
-  "music_folder": "D:\\Music",
+  "music_folder": "~/Music",
   "seek_seconds": 5,
   "shuffle": false,
   "repeat": false,

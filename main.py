@@ -1,15 +1,16 @@
 import os
 import sys
-import json
 import glob
 import time
 import random
-import difflib
-import hashlib
+import json
 from music_player import MusicPlayer
 from mutagen import File
+from config import load_config, save_config
+from utils import key_match, search, get_folder_hash
+from ui import keybinding_helper_row, help_text
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 
 if len(sys.argv) > 1 and sys.argv[1] in ("-v", "--version"):
     print(APP_VERSION)
@@ -29,196 +30,13 @@ except ImportError:
     else:
         raise
 
-DEFAULT_CONFIG = {
-  "keybindings": {
-    "quit": [":q"],
-    "search": ["/"],
-    "next": ["n"],
-    "prev": ["p"],
-    "play_pause": [" "],
-    "down": ["KEY_DOWN"],
-    "up": ["KEY_UP"],
-    "enter": ["KEY_ENTER", 10, 13],
-    "add_folder": [":a"],
-    "shuffle": ["s"],
-    "repeat": ["r"],
-    "volume_up": ["+", "="],
-    "volume_down": ["-"],
-    "fadeout": ["f"],
-    "queue": ["e"],
-    "seek_forward": ["KEY_RIGHT"],
-    "seek_backward": ["KEY_LEFT"],
-    "clear_queue": [":clear"],
-    "remove_queue": [":remove"]
-  },
-  "music_folder": "D:\\Music",
-  "seek_seconds": 5,
-  "shuffle": False,
-  "repeat": False,
-  "volume": 1.0,
-  "default_view": 1
-}
-
-def load_config(path="config.json"):
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-        for k in DEFAULT_CONFIG:
-            if k not in config:
-                config[k] = DEFAULT_CONFIG[k]
-        for k in DEFAULT_CONFIG["keybindings"]:
-            if k not in config["keybindings"]:
-                config["keybindings"][k] = DEFAULT_CONFIG["keybindings"][k]
-        return config
-    return DEFAULT_CONFIG.copy()
-
-def save_config(config, path="config.json"):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-
-def key_match(key, options, buffer=None):
-    for opt in options:
-        if isinstance(opt, int) and key == opt:
-            return True
-        if isinstance(opt, str):
-            if opt.startswith("KEY_"):
-                if hasattr(curses, opt) and key == getattr(curses, opt):
-                    return True
-            elif len(opt) == 1 and key == ord(opt):
-                return True
-            elif buffer is not None and buffer == opt:
-                return True
-    return False
-
-def keybinding_helper_row(keybindings):
-    mapping = {
-        "up": "Up",
-        "down": "Down", 
-        "enter": "Play",
-        "play_pause": "Play/Pause",
-        "next": "Next",
-        "prev": "Prev",
-        "shuffle": "Shuffle",
-        "repeat": "Repeat",
-        "search": "Search",
-        "quit": "Quit",
-        "volume_up": "Vol+",
-        "volume_down": "Vol-",
-        "fadeout": "Fade",
-        "queue": "Queue",
-        "seek_forward": ">>",
-        "seek_backward": "<<",
-        "clear_queue": "Clear",
-        "remove_queue": "Remove"
-    }
-    order = ["up", "down", "enter", "play_pause", "next", "prev", "shuffle", "repeat", "search", "volume_up", "volume_down", "fadeout", "queue", "seek_forward", "seek_backward", "clear_queue", "remove_queue", "quit"]
-    parts = []
-    for k in order:
-        if k in keybindings:
-            keys = []
-            for v in keybindings[k]:
-                if isinstance(v, str):
-                    if v.startswith("KEY_"):
-                        keys.append(v.replace("KEY_", "").replace("_", " ").title())
-                    elif v == " ":
-                        keys.append("Space")
-                    elif v.startswith(":"):
-                        keys.append(v)
-                    else:
-                        keys.append(v.upper())
-                else:
-                    keys.append(str(v))
-            if keys:
-                keys_str = "/".join(keys[:2])
-                parts.append(f"{keys_str}:{mapping.get(k, k)}")
-    return " | ".join(parts)
-
-def help_text(keybindings):
-    mapping = {
-        "up": "Move up",
-        "down": "Move down",
-        "enter": "Play selected",
-        "play_pause": "Play/Pause",
-        "next": "Next track",
-        "prev": "Previous track",
-        "shuffle": "Toggle shuffle",
-        "repeat": "Toggle repeat",
-        "search": "Search",
-        "quit": "Quit",
-        "volume_up": "Increase volume",
-        "volume_down": "Decrease volume",
-        "fadeout": "Fade out",
-        "queue": "Add to queue",
-        "seek_forward": "Seek forward",
-        "seek_backward": "Seek backward",
-        "clear_queue": "Clear queue",
-        "remove_queue": "Remove from queue",
-        "add_folder": "Add folder"
-    }
-    lines = ["Muse Help - Keybindings:"]
-    for k, v in keybindings.items():
-        keys = []
-        for key in v:
-            if isinstance(key, str):
-                if key.startswith("KEY_"):
-                    keys.append(key.replace("KEY_", "").replace("_", " ").title())
-                elif key == " ":
-                    keys.append("Space")
-                else:
-                    keys.append(key)
-            else:
-                keys.append(str(key))
-        desc = mapping.get(k, k)
-        lines.append(f"{'/'.join(keys)}: {desc}")
-    lines.append("")
-    lines.append("Other commands:")
-    lines.append(":a <folder> - Add/change music folder")
-    lines.append(":refresh - Rescan music folder and update library")
-    lines.append(":clear - Clear queue")
-    lines.append(":remove <n> - Remove nth song from queue")
-    lines.append(":q - Quit Muse")
-    lines.append(":v or :version - Show version")
-    lines.append(":help - Show this help")
-    return "\n".join(lines)
-
-def search(query, names):
-    if not query.strip():
-        return list(range(len(names)))
-    query_lower = query.lower()
-    exact_matches = []
-    starts_with_matches = []
-    word_matches = []
-    fuzzy_matches = []
-    substring_matches = []
-    for i, name in enumerate(names):
-        name_lower = name.lower()
-        if name_lower == query_lower:
-            exact_matches.append(i)
-        elif name_lower.startswith(query_lower):
-            starts_with_matches.append(i)
-        elif any(word.startswith(query_lower) for word in name_lower.split()):
-            word_matches.append(i)
-        elif query_lower in name_lower:
-            substring_matches.append(i)
-    fuzzy_candidates = [i for i in range(len(names)) if i not in exact_matches + starts_with_matches + word_matches + substring_matches]
-    if fuzzy_candidates:
-        fuzzy_names = [names[i] for i in fuzzy_candidates]
-        fuzzy_indices = [i for i, name in zip(fuzzy_candidates, fuzzy_names) if name]
-        fuzzy_matches_raw = difflib.get_close_matches(query, fuzzy_names, n=len(fuzzy_names), cutoff=0.5)
-        fuzzy_matches = [i for i, name in zip(fuzzy_candidates, fuzzy_names) if name in fuzzy_matches_raw]
-    all_matches = exact_matches + starts_with_matches + word_matches + substring_matches + fuzzy_matches
-    return all_matches
-
-def get_folder_hash(path):
-    return hashlib.md5(path.encode("utf-8")).hexdigest()
-
 class CLI:
     def __init__(self, stdscr, config):
         self.player = MusicPlayer()
         self.stdscr = stdscr
         self.config = config
         self.keybindings = config.get("keybindings", {})
-        self.music_folder = config.get("music_folder", "D:\\Music")
+        self.music_folder = os.path.expanduser(config.get("music_folder", ""))
         self.seek_seconds = config.get("seek_seconds", 5)
         self.playlist = []
         self.display_names = []
@@ -314,7 +132,7 @@ class CLI:
 
     def display_menu(self, display_names=None, command_input="", force_redraw=False, search_mode=False, filtered_indices=None, search_selected=0):
         max_y, max_x = self.stdscr.getmaxyx()
-        max_songs = max_y - 4
+        max_songs = max(0, max_y - 4)
         if not hasattr(self, 'colors_initialized'):
             curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
             curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)
@@ -346,22 +164,37 @@ class CLI:
         top_bar = f" {view_label}{now_playing} | Shuffle:{shuffle_icon} | Repeat:{repeat_icon}"
         if top_bar != self.last_top_bar or force_redraw:
             self.stdscr.attron(curses.color_pair(1))
-            self.stdscr.addstr(0, 0, top_bar[:max_x].ljust(max_x))
+            try:
+                self.stdscr.addstr(0, 0, top_bar[:max_x].ljust(max_x))
+            except curses.error:
+                pass
             self.stdscr.attroff(curses.color_pair(1))
             self.last_top_bar = top_bar
         if self.version_message:
             self.stdscr.attron(curses.color_pair(3))
-            self.stdscr.addstr(max_y - 3, 0, f"Muse v{self.version_message} - Press any key to continue".ljust(max_x - 1))
+            try:
+                self.stdscr.addstr(max_y - 3, 0, f"Muse v{self.version_message} - Press any key to continue".ljust(max_x))
+            except curses.error:
+                pass
             self.stdscr.attroff(curses.color_pair(3))
         elif command_input != self.last_command_input or force_redraw:
-            self.stdscr.addstr(max_y - 3, 0, command_input[:max_x - 1].ljust(max_x - 1))
+            try:
+                self.stdscr.addstr(max_y - 3, 0, command_input[:max_x].ljust(max_x))
+            except curses.error:
+                pass
             self.last_command_input = command_input
         if self.error_message:
             self.stdscr.attron(curses.color_pair(3))
-            self.stdscr.addstr(max_y - 2, 0, f"Error: {self.error_message}".ljust(max_x - 1))
+            try:
+                self.stdscr.addstr(max_y - 2, 0, f"Error: {self.error_message}".ljust(max_x))
+            except curses.error:
+                pass
             self.stdscr.attroff(curses.color_pair(3))
         else:
-            self.stdscr.addstr(max_y - 2, 0, "".ljust(max_x - 1))
+            try:
+                self.stdscr.addstr(max_y - 2, 0, "".ljust(max_x))
+            except curses.error:
+                pass
         current_names = display_names if display_names is not None else self.get_current_names()
         selected_index = self.selected_index
         if search_mode and filtered_indices is not None:
@@ -372,17 +205,23 @@ class CLI:
             elif selected_index >= self.scroll_offset + max_songs:
                 self.scroll_offset = selected_index - max_songs + 1
             for i in range(max_songs):
-                self.stdscr.move(1 + i, 0)
-                self.stdscr.clrtoeol()
+                try:
+                    self.stdscr.move(1 + i, 0)
+                    self.stdscr.clrtoeol()
+                except curses.error:
+                    pass
             visible_names = filtered_names[self.scroll_offset:self.scroll_offset + max_songs]
             for i, name in enumerate(visible_names):
                 idx = self.scroll_offset + i
-                if idx == selected_index:
-                    self.stdscr.attron(curses.color_pair(2))
-                    self.stdscr.addstr(1 + i, 0, name[:max_x - 1].ljust(max_x - 1))
-                    self.stdscr.attroff(curses.color_pair(2))
-                else:
-                    self.stdscr.addstr(1 + i, 0, name[:max_x - 1].ljust(max_x - 1))
+                try:
+                    if idx == selected_index:
+                        self.stdscr.attron(curses.color_pair(2))
+                        self.stdscr.addstr(1 + i, 0, name[:max_x].ljust(max_x))
+                        self.stdscr.attroff(curses.color_pair(2))
+                    else:
+                        self.stdscr.addstr(1 + i, 0, name[:max_x].ljust(max_x))
+                except curses.error:
+                    pass
             self.last_display_names = filtered_names[:]
             self.last_selected = selected_index
             self.last_scroll_offset = self.scroll_offset
@@ -410,27 +249,38 @@ class CLI:
                 elif self.album_song_selected >= self.album_songs_scroll + max_songs:
                     self.album_songs_scroll = self.album_song_selected - max_songs + 1
             for i in range(max_songs):
-                self.stdscr.move(1 + i, 0)
-                self.stdscr.clrtoeol()
+                try:
+                    self.stdscr.move(1 + i, 0)
+                    self.stdscr.clrtoeol()
+                except curses.error:
+                    pass
                 idx = self.scroll_offset + i
                 if idx < len(album_names):
-                    album_text = f"Album: {album_names[idx]} ({len(self.albums[album_names[idx]])} tracks)"
-                    if idx == selected_index and self.album_column == 0:
-                        self.stdscr.attron(curses.color_pair(2))
-                        self.stdscr.addstr(1 + i, 0, album_text[:left_width - 1].ljust(left_width - 1))
-                        self.stdscr.attroff(curses.color_pair(2))
-                    else:
-                        self.stdscr.addstr(1 + i, 0, album_text[:left_width - 1].ljust(left_width - 1))
+                    album_track_count = len(self.albums[album_names[idx]])
+                    track_label = "track" if album_track_count == 1 else "tracks"
+                    album_text = f"Album: {album_names[idx]} ({album_track_count} {track_label})"
+                    try:
+                        if idx == selected_index and self.album_column == 0:
+                            self.stdscr.attron(curses.color_pair(2))
+                            self.stdscr.addstr(1 + i, 0, album_text[:left_width].ljust(left_width))
+                            self.stdscr.attroff(curses.color_pair(2))
+                        else:
+                            self.stdscr.addstr(1 + i, 0, album_text[:left_width].ljust(left_width))
+                    except curses.error:
+                        pass
             for i in range(max_songs):
                 song_idx = self.album_songs_scroll + i
                 if song_idx < len(album_song_names):
                     song_text = f"{song_idx + 1:2}. {album_song_names[song_idx]}"
-                    if song_idx == self.album_song_selected and self.album_column == 1:
-                        self.stdscr.attron(curses.color_pair(2))
-                        self.stdscr.addstr(1 + i, left_width, song_text[:right_width - 1].ljust(right_width - 1))
-                        self.stdscr.attroff(curses.color_pair(2))
-                    else:
-                        self.stdscr.addstr(1 + i, left_width, song_text[:right_width - 1].ljust(right_width - 1))
+                    try:
+                        if song_idx == self.album_song_selected and self.album_column == 1:
+                            self.stdscr.attron(curses.color_pair(2))
+                            self.stdscr.addstr(1 + i, left_width, song_text[:right_width].ljust(right_width))
+                            self.stdscr.attroff(curses.color_pair(2))
+                        else:
+                            self.stdscr.addstr(1 + i, left_width, song_text[:right_width].ljust(right_width))
+                    except curses.error:
+                        pass
             self.last_display_names = album_names[:]
             self.last_selected = selected_index
             self.last_scroll_offset = self.scroll_offset
@@ -447,8 +297,11 @@ class CLI:
             )
             if need_song_redraw:
                 for i in range(max_songs):
-                    self.stdscr.move(1 + i, 0)
-                    self.stdscr.clrtoeol()
+                    try:
+                        self.stdscr.move(1 + i, 0)
+                        self.stdscr.clrtoeol()
+                    except curses.error:
+                        pass
                 visible_names = current_names[self.scroll_offset:self.scroll_offset + max_songs]
                 current_songs = self.get_current_songs()
                 for i, name in enumerate(visible_names):
@@ -459,28 +312,44 @@ class CLI:
                             display_text += f" [{self.durations[idx]}]"
                     else:
                         display_text = f"{idx + 1:2}. {name}"
-                    if idx == selected_index:
-                        self.stdscr.attron(curses.color_pair(2))
-                        self.stdscr.addstr(1 + i, 0, display_text[:max_x - 1].ljust(max_x - 1))
-                        self.stdscr.attroff(curses.color_pair(2))
-                    else:
-                        if idx < len(current_songs) and current_songs[idx] == self.current_song_path:
-                            self.stdscr.attron(curses.color_pair(3))
-                            self.stdscr.addstr(1 + i, 0, display_text[:max_x - 1].ljust(max_x - 1))
-                            self.stdscr.attroff(curses.color_pair(3))
+                    try:
+                        if idx == selected_index:
+                            self.stdscr.attron(curses.color_pair(2))
+                            self.stdscr.addstr(1 + i, 0, display_text[:max_x].ljust(max_x))
+                            self.stdscr.attroff(curses.color_pair(2))
                         else:
-                            self.stdscr.addstr(1 + i, 0, display_text[:max_x - 1].ljust(max_x - 1))
+                            if idx < len(current_songs) and current_songs[idx] == self.current_song_path:
+                                self.stdscr.attron(curses.color_pair(3))
+                                self.stdscr.addstr(1 + i, 0, display_text[:max_x].ljust(max_x))
+                                self.stdscr.attroff(curses.color_pair(3))
+                            else:
+                                self.stdscr.addstr(1 + i, 0, display_text[:max_x].ljust(max_x))
+                    except curses.error:
+                        pass
                 self.last_display_names = current_names[:]
                 self.last_selected = selected_index
                 self.last_scroll_offset = self.scroll_offset
         status = keybinding_helper_row(self.keybindings)
         status += " | 1:Library 2:Queue 3:Albums"
         if status != self.last_status or force_redraw:
-            self.stdscr.addstr(max_y - 1, 0, status[:max_x - 1].ljust(max_x - 1))
+            try:
+                self.stdscr.addstr(max_y - 1, 0, status[:max_x].ljust(max_x))
+            except curses.error:
+                pass
             self.last_status = status
-        self.stdscr.refresh()
+        try:
+            self.stdscr.refresh()
+        except curses.error:
+            pass
 
     def load_playlist(self, path):
+        path = os.path.expanduser(path)
+        if not path.strip():
+            self.display_names = ["[No music folder set. Use ':a <folder>' to add one.]"]
+            self.durations = [""]
+            self.playlist = []
+            self.error_message = "No music folder set."
+            return
         cache_file = f"playlist_cache_{get_folder_hash(path)}.json"
         try:
             if os.path.exists(cache_file):
@@ -579,18 +448,21 @@ class CLI:
         quit_prompt = False
         self.display_menu(force_redraw=True)
         while True:
-            if self.repeat and self.current_song_path and self.player.is_song_finished():
+            if self.current_song_path and self.player.is_song_finished():
                 if self.queue_list and self.queue_index < len(self.queue_list):
-                    song = self.queue_list[self.queue_index]
-                    self.play_song(song)
-                    self.queue_index = (self.queue_index + 1) % len(self.queue_list)
-                elif self.current_song_path:
-                    self.play_song(self.current_song_path)
-            elif self.queue_list and self.current_song_path and self.player.is_song_finished():
-                if self.queue_index < len(self.queue_list):
                     next_song = self.queue_list[self.queue_index]
                     self.play_song(next_song)
                     self.queue_index += 1
+                else:
+                    if self.shuffle:
+                        if self.playlist:
+                            next_song = random.choice(self.playlist)
+                            self.play_song(next_song)
+                    else:
+                        if self.playlist and self.current_song_path in self.playlist:
+                            idx = self.playlist.index(self.current_song_path)
+                            next_idx = (idx + 1) % len(self.playlist)
+                            self.play_song(self.playlist[next_idx])
             now = time.time()
             need_redraw = now - last_draw > redraw_interval
             if need_redraw:
@@ -628,11 +500,23 @@ class CLI:
                     command_mode = False
                     command_buffer = ""
                 elif key in (10, 13):
-                    if command_buffer.strip() == ":help":
+                    cmd = command_buffer.strip()
+                    if cmd == ":help":
                         help_msg = help_text(self.keybindings)
                         self.stdscr.clear()
-                        self.stdscr.addstr(0, 0, help_msg)
-                        self.stdscr.addstr(self.stdscr.getmaxyx()[0] - 1, 0, "Press any key to return...")
+                        lines = help_msg.splitlines()
+                        max_y, max_x = self.stdscr.getmaxyx()
+                        for i, line in enumerate(lines):
+                            if i >= max_y - 2:
+                                break
+                            try:
+                                self.stdscr.addstr(i, 0, line[:max_x])
+                            except curses.error:
+                                pass
+                        try:
+                            self.stdscr.addstr(max_y - 1, 0, "Press any key to return...".ljust(max_x))
+                        except curses.error:
+                            pass
                         self.stdscr.refresh()
                         while True:
                             if self.stdscr.getch() != -1:
@@ -643,8 +527,9 @@ class CLI:
                         command_buffer = ""
                         force_redraw = True
                         continue
-                    if command_buffer.startswith(":a "):
+                    elif cmd.startswith(":a "):
                         folder = command_buffer[3:].strip()
+                        folder = os.path.expanduser(folder)
                         if folder and os.path.exists(folder):
                             self.music_folder = folder
                             self.config["music_folder"] = folder
@@ -652,20 +537,22 @@ class CLI:
                             self.load_playlist(self.music_folder)
                             self.selected_index = 0
                             self.scroll_offset = 0
+                            self.error_message = ""
                         else:
                             self.display_names = ["[Invalid folder: not found]"]
                             self.durations = [""]
                             self.playlist = []
                             self.error_message = "Folder not found."
-                    elif command_buffer.strip() == ":refresh":
+                    elif cmd == ":refresh":
                         self.refresh_playlist()
-                    elif command_buffer.strip() == ":q":
+                        self.error_message = ""
+                    elif cmd == ":q":
                         self.config["volume"] = self.volume
                         self.config["shuffle"] = self.shuffle
                         self.config["repeat"] = self.repeat
                         save_config(self.config)
                         break
-                    elif command_buffer.strip() in (":v", ":version"):
+                    elif cmd in (":v", ":version"):
                         self.version_message = APP_VERSION
                         self.display_menu(force_redraw=True)
                         while True:
@@ -674,10 +561,12 @@ class CLI:
                                 self.version_message = ""
                                 break
                             time.sleep(0.01)
-                    elif command_buffer.strip() == ":clear":
+                        self.error_message = ""
+                    elif cmd == ":clear":
                         self.queue_list = []
                         self.queue_index = 0
-                    elif command_buffer.startswith(":remove "):
+                        self.error_message = ""
+                    elif cmd.startswith(":remove "):
                         try:
                             num_str = command_buffer[8:].strip()
                             remove_index = int(num_str) - 1
@@ -689,8 +578,15 @@ class CLI:
                                     self.selected_index = len(self.queue_list) - 1
                                 elif not self.queue_list:
                                     self.selected_index = 0
+                                self.error_message = ""
+                            else:
+                                self.error_message = "Invalid queue index."
                         except (ValueError, IndexError):
-                            pass
+                            self.error_message = "Invalid queue index."
+                    elif cmd == "":
+                        self.error_message = ""
+                    else:
+                        self.error_message = f"Unknown command: {cmd}"
                     command_mode = False
                     command_buffer = ""
                 elif key in (curses.KEY_BACKSPACE, 127, 8):
@@ -720,25 +616,21 @@ class CLI:
                     self.search_selected = 0
                 elif key_match(key, kb["enter"]):
                     if filtered_indices and len(filtered_indices) > 0 and self.search_selected < len(filtered_indices):
-                        current_songs = self.get_current_songs()
                         original_idx = filtered_indices[self.search_selected]
-                        if self.view_mode == 2:
-                            if original_idx < len(self.queue_list):
-                                song = self.queue_list[original_idx]
-                                self.play_song(song)
-                                self.selected_index = original_idx
-                        else:
-                            if original_idx < len(self.playlist):
-                                song = self.playlist[original_idx]
-                                self.selected_index = original_idx
-                                self.play_song(song)
+                        self.selected_index = original_idx
                     search_mode = False
                     search_query = ""
                     filtered_indices = None
                     self.search_selected = 0
                 elif key in (curses.KEY_BACKSPACE, 127, 8):
-                    search_query = search_query[:-1]
-                    self.search_selected = 0
+                    if search_query:
+                        search_query = search_query[:-1]
+                        self.search_selected = 0
+                    else:
+                        search_mode = False
+                        search_query = ""
+                        filtered_indices = None
+                        self.search_selected = 0
                 elif 32 <= key <= 126:
                     search_query += chr(key)
                     self.search_selected = 0
