@@ -1,18 +1,18 @@
 [Setup]
 AppName=Muse
-AppVersion=1.1.1
+AppVersion=1.1.2
 DefaultDirName={pf}\Muse
 DefaultGroupName=Muse
 OutputDir=.
-OutputBaseFilename=MuseSetup-v1.1.1
+OutputBaseFilename=MuseSetup-v1.1.2
 
 [Files]
-Source: "dist\muse.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\main.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "config.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Muse"; Filename: "{app}\muse.exe"
+Name: "{group}\Muse"; Filename: "{app}\main.exe"
 
 [Code]
 const
